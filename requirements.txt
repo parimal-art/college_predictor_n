@@ -2,4 +2,4 @@ flask==3.0.3
 pandas==2.2.3
 firebase-admin==6.5.0
 python-magic==0.4.27
-gunicorn
+gunicorn==23.0.0

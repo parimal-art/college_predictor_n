@@ -14,6 +14,176 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# Define HTML templates
+INDEX_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Predictor</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .form-container { max-width: 600px; margin: auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        select, input[type="number"], input[type="submit"] {
+            width: 100%; padding: 8px; margin-top: 5px; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h1>College Predictor</h1>
+        <form method="POST" action="/predict">
+            <div class="form-group">
+                <label for="rank">Enter Your Rank:</label>
+                <input type="number" id="rank" name="rank" value="{{ form_data.get('rank', '') }}" required>
+            </div>
+            <div class="form-group">
+                <label for="program">Program:</label>
+                <select id="program" name="program">
+                    <option value="Any" {% if form_data.get('program') == 'Any' %}selected{% endif %}>Any</option>
+                    {% for program in programs %}
+                        <option value="{{ program }}" {% if form_data.get('program') == program %}selected{% endif %}>{{ program }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="stream">Stream:</label>
+                <select id="stream" name="stream">
+                    <option value="Any" {% if form_data.get('stream') == 'Any' %}selected{% endif %}>Any</option>
+                    {% for stream in streams %}
+                        <option value="{{ stream }}" {% if form_data.get('stream') == stream %}selected{% endif %}>{{ stream }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="category">Category:</label>
+                <select id="category" name="category">
+                    <option value="Any" {% if form_data.get('category') == 'Any' %}selected{% endif %}>Any</option>
+                    {% for category in categories %}
+                        <option value="{{ category }}" {% if form_data.get('category') == category %}selected{% endif %}>{{ category }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="quota">Quota:</label>
+                <select id="quota" name="quota">
+                    <option value="Any" {% if form_data.get('quota') == 'Any' %}selected{% endif %}>Any</option>
+                    {% for quota in quotas %}
+                        <option value="{{ quota }}" {% if form_data.get('quota') == quota %}selected{% endif %}>{{ quota }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="seat_type">Seat Type:</label>
+                <select id="seat_type" name="seat_type">
+                    <option value="Any" {% if form_data.get('seat_type') == 'Any' %}selected{% endif %}>Any</option>
+                    {% for seat_type in seat_types %}
+                        <option value="{{ seat_type }}" {% if form_data.get('seat_type') == seat_type %}selected{% endif %}>{{ seat_type }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="round">Round:</label>
+                <select id="round" name="round">
+                    <option value="Any" {% if form_data.get('round') == 'Any' %}selected{% endif %}>Any</option>
+                    {% for round in rounds %}
+                        <option value="{{ round }}" {% if form_data.get('round') == round %}selected{% endif %}>{{ round }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="year">Year:</label>
+                <select id="year" name="year">
+                    <option value="Any" {% if form_data.get('year') == 'Any' %}selected{% endif %}>Any</option>
+                    {% for year in years %}
+                        <option value="{{ year }}" {% if form_data.get('year') == year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <input type="submit" value="Predict Colleges">
+        </form>
+    </div>
+</body>
+</html>
+"""
+
+RESULTS_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .results-container { max-width: 800px; margin: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .message { color: red; margin: 10px 0; }
+        .pagination { margin-top: 20px; }
+        .pagination a { margin: 0 5px; text-decoration: none; }
+        .download-btn { margin-top: 10px; display: inline-block; padding: 10px; background-color: #4CAF50; color: white; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="results-container">
+        <h1>College Prediction Results</h1>
+        {% if low_rank_message %}
+            <p class="message">{{ low_rank_message }}</p>
+        {% endif %}
+        {% if min_rank_message %}
+            <p class="message">{{ min_rank_message }}</p>
+        {% endif %}
+        <p>Total Results: {{ total_results }}</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Institute</th>
+                    <th>Program</th>
+                    <th>Round</th>
+                    <th>Category</th>
+                    <th>Quota</th>
+                    <th>Seat Type</th>
+                    <th>Opening Rank</th>
+                    <th>Closing Rank</th>
+                    <th>Year</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                    <tr>
+                        <td>{{ result['Institute'] }}</td>
+                        <td>{{ result['Program'] }}</td>
+                        <td>{{ result['Round'] }}</td>
+                        <td>{{ result['Category'] }}</td>
+                        <td>{{ result['Quota'] }}</td>
+                        <td>{{ result['Seat Type'] }}</td>
+                        <td>{{ result['Opening Rank'] }}</td>
+                        <td>{{ result['Closing Rank'] }}</td>
+                        <td>{{ result['Year'] }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="pagination">
+            {% if page > 1 %}
+                <a href="/predict?rank={{ form_data.get('rank') }}&program={{ form_data.get('program') }}&stream={{ form_data.get('stream') }}&category={{ form_data.get('category') }}&quota={{ form_data.get('quota') }}&seat_type={{ form_data.get('seat_type') }}&round={{ form_data.get('round') }}&year={{ form_data.get('year') }}&page={{ page - 1 }}">Previous</a>
+            {% endif %}
+            {% if has_next %}
+                <a href="/predict?rank={{ form_data.get('rank') }}&program={{ form_data.get('program') }}&stream={{ form_data.get('stream') }}&category={{ form_data.get('category') }}&quota={{ form_data.get('quota') }}&seat_type={{ form_data.get('seat_type') }}&round={{ form_data.get('round') }}&year={{ form_data.get('year') }}&page={{ page + 1 }}">Next</a>
+            {% endif %}
+        </div>
+        <a href="/download" class="download-btn">Download Results as CSV</a>
+        <p><a href="/">Back to Predictor</a></p>
+    </div>
+</body>
+</html>
+"""
+
 # Load and preprocess data
 data_file_path = 'wbjee_final_clean.xls'  # Local relative path
 if os.environ.get('RENDER', 'False') == 'True':
@@ -57,8 +227,6 @@ if not firebase_admin._apps:
 def is_valid_gmail(email):
     gmail_pattern = r'^[a-zA-Z0-9._%+-]+@gmail\.com$'
     return re.match(gmail_pattern, email) is not None
-
-# HTML templates (unchanged, using your provided INDEX_HTML and RESULTS_HTML)
 
 # Middleware to verify Firebase ID token
 def verify_token():
@@ -224,6 +392,13 @@ def download():
     except Exception as e:
         logger.error(f"Error in download: {str(e)}")
         abort(500, description=f"Error: No results to download. {str(e)}")
+
+@app.route('/favicon.ico')
+def favicon():
+    try:
+        return send_file('static/favicon.ico')
+    except FileNotFoundError:
+        abort(404)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
